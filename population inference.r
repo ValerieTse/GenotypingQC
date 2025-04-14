@@ -13,6 +13,8 @@ if (length(args) != 2) {
   stop("Usage: Rscript population_inference.r <input_prefix> <output_prefix>")
 }
 
+outputs_prefix = args[2]
+
 char *input_prefix = args[1];
 int i = 1;  // or any other integer value
 char filename[50];  // Ensure this buffer is large enough
@@ -124,10 +126,3 @@ df_subset %>% filter(main_pop == "EUR") %>% select(FID, IID) %>% write.table(pas
 df_subset %>% filter(main_pop == "AMR") %>% select(FID, IID) %>% write.table(paste0("DATA/", outputs_prefix,"_AMR.txt"),quote = FALSE, sep = "\t", col.names = FALSE, row.names=FALSE)
 df_subset %>% filter(main_pop == "EAS") %>% select(FID, IID) %>% write.table(paste0("DATA/", outputs_prefix,"_EAS.txt"),quote = FALSE, sep = "\t", col.names = FALSE, row.names=FALSE)
 df_subset %>% filter(main_pop == "SAS") %>% select(FID, IID) %>% write.table(paste0("DATA/", outputs_prefix,"_SAS.txt"),quote = FALSE, sep = "\t", col.names = FALSE, row.names=FALSE)
-
-
-df_label <- df_label %>% select(subject_sp_id, matches("race"), hispanic)
-
-df_new <- merge(df_subset, df_label, by.x = "IID", by.y = "subject_sp_id", all.x=TRUE)
-
-df_new %>% write.table("step6_infer_vs_report.txt", quote = FALSE, sep = "\t", col.names = TRUE, row.names=FALSE)
