@@ -179,4 +179,14 @@ p1 <- ggplot(summary_new, aes(x = X_Mean_Intensity, y = Y_Mean_Intensity, color 
                labels = c("0" = "NA", "1" = "Male", "2" = "Female")) +
           theme_bw()
 
-ggsave(paste0(Folder, "/OUTPUTS/", prefix, "_YX_intesity.png"), plot = p1, width = 6, height = 5, dpi = 300)
+ggsave(paste0(Folder, "/OUTPUTS/", prefix, "_YX_intesity_SNPSEX.png"), plot = p1, width = 6, height = 5, dpi = 300)
+
+p2 <- ggplot(summary_new, aes(x = X_Mean_Intensity, y = Y_Mean_Intensity, color = as.factor(PEDSEX))) +
+          geom_point() +
+          labs(x = "X intensity (30522 probes)", y = "Y intensity (5689 probes)", color = "Annotated Sex") +
+          scale_color_manual(
+               values = c("1" = "red", "2" = "blue"),
+               labels = c("1" = "Male", "2" = "Female")) +
+          theme_bw()
+
+ggsave(paste0(Folder, "/OUTPUTS/", prefix, "_YX_intesity_PEDSEX.png"), plot = p2, width = 6, height = 5, dpi = 300)
