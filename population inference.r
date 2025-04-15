@@ -125,3 +125,4 @@ df_subset %>% filter(main_pop == "EUR") %>% select(FID, IID) %>% write.table(pas
 df_subset %>% filter(main_pop == "AMR") %>% select(FID, IID) %>% write.table(paste0(Folder, "/DATA/", outputs_prefix,"_AMR.txt"),quote = FALSE, sep = "\t", col.names = FALSE, row.names=FALSE)
 df_subset %>% filter(main_pop == "EAS") %>% select(FID, IID) %>% write.table(paste0(Folder, "/DATA/", outputs_prefix,"_EAS.txt"),quote = FALSE, sep = "\t", col.names = FALSE, row.names=FALSE)
 df_subset %>% filter(main_pop == "SAS") %>% select(FID, IID) %>% write.table(paste0(Folder, "/DATA/", outputs_prefix,"_SAS.txt"),quote = FALSE, sep = "\t", col.names = FALSE, row.names=FALSE)
+df_subset %>% select(FID, IID, main_pop) %>% write.table(paste0(Folder, "/DATA/", outputs_prefix,"_popinfer.txt"),quote = FALSE, sep = "\t", col.names = FALSE, row.names=FALSE)
