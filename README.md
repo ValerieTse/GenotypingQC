@@ -118,7 +118,7 @@ This repository outlines the quality control (QC) workflow for genomic data proc
   4. **Intensity Checks (Optional):**
      - If `.idat` files are available, extract and inspect X and Y chromosome intensities.
      - Using the `illuminaio` R package.
-  5. **Addressing PLINK Limitations:**
+  5. **X Chromosome heterozygosity rate:**
      - The PLINK `--check-sex` command only provides an F-statistic.
      - To estimate the heterozygosity rate for the X chromosome:
        - Extract the X chromosome data. `--chr X`
