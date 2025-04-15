@@ -16,7 +16,7 @@ Folder <- args[4]
 
 # ----- Read and Process .smiss File -----
 smiss <- read.table(smiss_file, header = FALSE)
-colnames(smiss) <- c("FID", "IID", "PHENO1", "MISSING_CT", "OBS_CT", "F_MISS")
+colnames(smiss) <- c("FID", "IID", "MISSING_CT", "OBS_CT", "F_MISS")
 smiss <- smiss %>% select(IID, F_MISS)
 
 sex_info <- read.table(sex_info, header = FALSE)
