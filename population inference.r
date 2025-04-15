@@ -9,11 +9,12 @@ library(ggplot2)
 # Get command-line arguments
 args <- commandArgs(trailingOnly = TRUE)
 
-if (length(args) != 2) {
-  stop("Usage: Rscript population_inference.r <input_prefix> <output_prefix>")
+if (length(args) != 3) {
+  stop("Usage: Rscript population_inference.r <input_prefix> <output_prefix> <Folder>")
 }
 
 outputs_prefix = args[2]
+Folder <- args[3]
 
 char *input_prefix = args[1];
 int i = 1;  // or any other integer value
@@ -29,8 +30,7 @@ dfs <- lapply(1:9, function(i) {
   # Read each file (assuming no header)
   df_pop <- read.table(pop_file, header = FALSE) %>% select(pop = V1)
   df_fam <- read.table(fam_file, header = FALSE) %>% select(FID = V1, IID = V2)
-  df_Q   <- read.table(q_file, header = FALSE) %>% 
-              select(AFR = V1, AMR = V2, EAS = V3, EUR = V4, SAS = V5)
+  df_Q   <- read.table(q_file, header = FALSE) %>% select(AFR = V1, AMR = V2, EAS = V3, EUR = V4, SAS = V5)
   
   # Combine columns and adjust the 'pop' column
   df <- cbind(df_fam, df_pop, df_Q) %>% 
@@ -69,7 +69,7 @@ p <- ggplot(df_long, aes(x = IID, y = Proportion, fill = InferredPop)) +
   ) +
   labs(x = "Samples", y = "Proportion", fill = "Inferred Population")
 
-ggsave(paste0("OUTPUTS/",outputs_prefix, "_popinfer.png"), plot = p, dpi = 300, width = 12, height = 4)
+ggsave(paste0(Folder, "/OUTPUTS/",outputs_prefix, "_popinfer.png"), plot = p, dpi = 300, width = 12, height = 4)
 
 df_long <- df_ref %>%
   pivot_longer(
@@ -88,7 +88,7 @@ p <- ggplot(df_long, aes(x = IID, y = Proportion, fill = InferredPop)) +
   ) +
   labs(x = "Samples", y = "Proportion", fill = "Inferred Population")
 
-ggsave(paste0("OUTPUTS/",outputs_prefix, "_pop1000G.png"), plot = p, dpi = 300, width = 12, height = 4)
+ggsave(paste0(Folder, "/OUTPUTS/",outputs_prefix, "_pop1000G.png"), plot = p, dpi = 300, width = 12, height = 4)
 
 df_unique <- final_df %>% distinct(IID, .keep_all = TRUE)
 
@@ -109,10 +109,9 @@ p <- ggplot(df_long, aes(x = IID, y = Proportion, fill = InferredPop)) +
   ) +
   labs(x = "Samples", y = "Proportion", fill = "Inferred Population")
 
-ggsave(paste0("OUTPUTS/",outputs_prefix, "_pop_us&1000G.png"), plot = p, dpi = 300, width = 12, height = 4)
+ggsave(paste0(Folder, "/OUTPUTS/",outputs_prefix, "_pop_us&1000G.png"), plot = p, dpi = 300, width = 12, height = 4)
 
 pop_cols <- c("AFR", "AMR", "EAS", "EUR", "SAS")
-
 
 df_subset <- df_subset %>%
   rowwise() %>%
@@ -121,8 +120,8 @@ df_subset <- df_subset %>%
   ) %>%
   ungroup()
 
-df_subset %>% filter(main_pop == "AFR") %>% select(FID, IID) %>% write.table(paste0("DATA/", outputs_prefix,"_AFR.txt"), quote = FALSE, sep = "\t", col.names = FALSE, row.names=FALSE)
-df_subset %>% filter(main_pop == "EUR") %>% select(FID, IID) %>% write.table(paste0("DATA/", outputs_prefix,"_EUR.txt"),quote = FALSE, sep = "\t", col.names = FALSE, row.names=FALSE)
-df_subset %>% filter(main_pop == "AMR") %>% select(FID, IID) %>% write.table(paste0("DATA/", outputs_prefix,"_AMR.txt"),quote = FALSE, sep = "\t", col.names = FALSE, row.names=FALSE)
-df_subset %>% filter(main_pop == "EAS") %>% select(FID, IID) %>% write.table(paste0("DATA/", outputs_prefix,"_EAS.txt"),quote = FALSE, sep = "\t", col.names = FALSE, row.names=FALSE)
-df_subset %>% filter(main_pop == "SAS") %>% select(FID, IID) %>% write.table(paste0("DATA/", outputs_prefix,"_SAS.txt"),quote = FALSE, sep = "\t", col.names = FALSE, row.names=FALSE)
+df_subset %>% filter(main_pop == "AFR") %>% select(FID, IID) %>% write.table(paste0(Folder, "/DATA/", outputs_prefix,"_AFR.txt"), quote = FALSE, sep = "\t", col.names = FALSE, row.names=FALSE)
+df_subset %>% filter(main_pop == "EUR") %>% select(FID, IID) %>% write.table(paste0(Folder, "/DATA/", outputs_prefix,"_EUR.txt"),quote = FALSE, sep = "\t", col.names = FALSE, row.names=FALSE)
+df_subset %>% filter(main_pop == "AMR") %>% select(FID, IID) %>% write.table(paste0(Folder, "/DATA/", outputs_prefix,"_AMR.txt"),quote = FALSE, sep = "\t", col.names = FALSE, row.names=FALSE)
+df_subset %>% filter(main_pop == "EAS") %>% select(FID, IID) %>% write.table(paste0(Folder, "/DATA/", outputs_prefix,"_EAS.txt"),quote = FALSE, sep = "\t", col.names = FALSE, row.names=FALSE)
+df_subset %>% filter(main_pop == "SAS") %>% select(FID, IID) %>% write.table(paste0(Folder, "/DATA/", outputs_prefix,"_SAS.txt"),quote = FALSE, sep = "\t", col.names = FALSE, row.names=FALSE)
