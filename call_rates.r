@@ -11,7 +11,7 @@ vmiss_file <- args[2]
 
 # ----- Read and Process .smiss File -----
 smiss <- read.table(smiss_file, header = FALSE)
-colnames(smiss) <- c("FID", "IID", "PHENO1", "MISSING_CT", "OBS_CT", "F_MISS")
+colnames(smiss) <- c("FID", "IID", "MISSING_CT", "OBS_CT", "F_MISS")
 smiss$call_rate <- 1 - smiss$F_MISS
 
 # Print the maximum missing rate for samples
