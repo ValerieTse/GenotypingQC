@@ -7,14 +7,15 @@ suppressMessages(library(dplyr))
 # ----- Get command-line arguments -----
 args <- commandArgs(trailingOnly = TRUE)
 
-if (length(args) != 2) {
-  stop("Usage: Rscript plot_pca.R <fam_file> <pop_file> <eigenvec_file> <prefix>")
+if (length(args) != 5) {
+  stop("Usage: Rscript plot_pca.R <fam_file> <pop_file> <eigenvec_file> <prefix> <Folder>")
 }
 
 fam_file <- args[1]
 pop_file <- args [2]
 eigenvec_file <- args[3]
-prefix <- argas[4]
+prefix <- args[4]
+Folder <- args[5]
 
 # ----- create pop files -----  
 fread(fam_file, header = F) -> fam 
@@ -24,7 +25,7 @@ fam <- fam %>% select(FID, IID)
 fread(pop_file) -> pop
 pop <- merge(fam, pop, by.x = "IID", by.y = "#IID", all.x = TRUE)
 pop %>% select(FID, IID, Pop = Population, SPop=SuperPop) %>% mutate(Pop = ifelse(is.na(Pop), 'Sample', Pop), SPop = ifelse(is.na(SPop), 'Sample', SPop)) -> pop
-pop %>% fwrite("DATA/", prefix, "_pop.txt")
+pop %>% fwrite(paste0(Folder, "/DATA/", prefix, "_pop.txt"))
 
 pca <- fread(eigenvec_file)
 pca <- merge(pca, pop, by = "IID", all.x = TRUE)
@@ -48,7 +49,7 @@ pca <- ggplot() +
   scale_color_manual(values = my_colors) +
   labs(color = "Population") +
   theme_bw()
-ggsave(paste0("OUTPUTS/", prefix, "_pca_Spop.png"), plot = pca, width = 6, height = 5, dpi = 300)
+ggsave(paste0(Folder, "/OUTPUTS/", prefix, "_pca_Spop.png"), plot = pca, width = 6, height = 5, dpi = 300)
 
 pca$Pop <- as.factor(pca$Pop)
 others <- levels(pca$Pop)[levels(pca$Pop) != "Sample"]
@@ -67,4 +68,4 @@ pca2 <- ggplot() +
   scale_color_manual(values = my_colors) +
   labs(color = "Population") +
   theme_bw()
-ggsave(paste0("OUTPUTS/", prefix, "_pca_pop.png"), plot = pca, width = 6, height = 5, dpi = 300)
+ggsave(paste0(Folder, "/OUTPUTS/", prefix, "_pca_pop.png"), plot = pca, width = 6, height = 5, dpi = 300)
