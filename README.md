@@ -66,9 +66,9 @@ This repository outlines the quality control (QC) workflow for genomic data proc
         --missing \
         --out missingness
 - **Outputs:**
--   If you used `plink1.9`, you will get `.lmiss` and `.imiss` files.
--   If you used `plink2`, you will get `.smiss` and `.vmiss` files.
--   Check the Plink website for the outputs.
+  - If you used `plink1.9`, you will get `.lmiss` and `.imiss` files.
+  - If you used `plink2`, you will get `.smiss` and `.vmiss` files.
+  - Check the Plink website for the outputs.
   
 ---
 
