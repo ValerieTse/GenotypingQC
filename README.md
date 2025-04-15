@@ -161,7 +161,11 @@ This repository outlines the quality control (QC) workflow for genomic data proc
   - Use principal components to compute a population-corrected heterozygosity measure.
     - Raw heterozygosity rate = Corrected heterozygosity rate + PCs
   - Flag samples with extreme heterozygosity values for further review.
-
+- **Command:**
+  ```bash
+  plink --bfile your_data \
+        --het  \
+        --out your_data
 ---
 
 ## 8. Hardy-Weinberg Equilibrium (HWE) Testing
