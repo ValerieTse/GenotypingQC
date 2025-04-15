@@ -109,7 +109,7 @@ This repository outlines the quality control (QC) workflow for genomic data proc
      - Identify and flag samples with discrepancies.
   3. **Y Chromosome Missingness:**
      - Evaluate the Y chromosome call rates in problematic samples.
-       - **Commands:**
+     - **Commands:**
        ```bash
        plink --bfile your_data \
              --keep problematic_list.txt \
@@ -121,7 +121,7 @@ This repository outlines the quality control (QC) workflow for genomic data proc
   5. **Addressing PLINK Limitations:**
      - The PLINK `--check-sex` command only provides an F-statistic.
      - To estimate the heterozygosity rate for the X chromosome:
-       - Extract the X chromosome data. `--chr X``
+       - Extract the X chromosome data. `--chr X`
        - Recode it as chromosome 1 (satisfying the requirement for the `--het` command).
        - Calculate the heterozygosity rate accordingly.
 
@@ -159,9 +159,7 @@ This repository outlines the quality control (QC) workflow for genomic data proc
 - **Objective:** Detect samples with aberrant heterozygosity which may indicate quality problems.
 - **Steps:**
   - Use principal components to compute a population-corrected heterozygosity measure.
-    $$
-    Raw heterozygosity rate = Corrected heterozygosity rate + PCs
-    $$
+    - Raw heterozygosity rate = Corrected heterozygosity rate + PCs
   - Flag samples with extreme heterozygosity values for further review.
 
 ---
