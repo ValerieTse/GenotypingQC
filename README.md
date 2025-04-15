@@ -1,9 +1,6 @@
-```markdown
 # Genomic Data QC Pipeline
 
 This repository outlines the quality control (QC) workflow for genomic data processing. The pipeline includes environmental setup, file updating, sample validation, sex checks, population structure analysis, and variant filtering. Follow these steps to ensure that the genotype data is clean and suitable for downstream analysis.
-
----
 
 ## 1. Preparing
 
@@ -148,4 +145,4 @@ This README details the steps required for robust genomic data quality control. 
 - Reference datasets (e.g., 1000 Genomes Phase 3)
 - Software tools: PLINK, neural-admixture, illuminaio
 - Additional documentation and tutorials available in the repository.
-```
+
