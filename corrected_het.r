@@ -3,7 +3,7 @@ library(dplyr)
 
 # ----- Parse Command Line Arguments -----
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) < 2) {
+if (length(args) < 4) {
   stop("Usage: Rscript corrected_het.r <het_file> <pc_file> <output_prefix> <Folder>")
 }
 het_file <- args[1]
