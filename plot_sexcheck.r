@@ -6,7 +6,7 @@ suppressMessages(library(ggplot2))
 # Get command-line arguments
 args <- commandArgs(trailingOnly = TRUE)
 
-if (length(args) != 2) {
+if (length(args) != 3) {
   stop("Usage: Rscript plot_sexcheck.r <sexcheck_file_path> <output_prefix> <Folder>")
 }
 
