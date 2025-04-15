@@ -1,74 +1,84 @@
-# Step1: Update the .fam file
-Rscript update_info_extract.r
+#!/bin/bash
+# ==========================================================================================
+# Script Name: qc_pipeline.sh
+# Author: Jingyu Xie
+# Date: 2025-04-14
+# Version: v1.0
+# Description: This script demonstrates the basic QC pipeline for genotypeing data in Bash.
+# Data: The genotyping data are typical PLINK format.
+# ==========================================================================================
 
-plink2 --bfile /project/cshu0237_1136/Data/SPARK/iWES_v3/genotypes/genotyping_array/plink/SPARK.iWES_v3.2024_08.GSA-24_v2 --update-ids release_notes/update_ids.txt --make-bed --out DATA/step1_update_ids
-plink2 --bfile DATA/step1_update_ids --update-sex release_notes/update_sex.txt --make-bed --out DATA/step1_update_sex 
-plink2 --bfile DATA/step1_update_sex --pheno release_notes/pheno.txt --make-bed --out DATA/step1_update_pheno
+# ----- Step 0: Create directory and module load -----
+conda create -n geno_qc python=3.9
+conda activate geno_qc 
 
-cd DATA
+module load plink2 # plink2 is still at the beta phase, if you download plink1.9, use it instead.
+raw_data=/project/cshu0237_1136/Data/SPARK/iWES_v3/genotypes/genotyping_array/plink/SPARK.iWES_v3.2024_08.GSA-24_v2 # raw data, directory + prefix
 
-Rscript ../PROGRAM/counts.r step1_update_pheno
+mkdir DATA PROGRAM OUTPUTS Reference_data Release_Notes # creating the directory
 
-# Step2: Initial check
-plink2 --bfile step1_update_pheno --missing --out step2_overall_missing
+# ----- Step 1: Update the .fam file -----
+Rscript PROGRAM/update_info_extract.r /project/cshu0237_1136/Data/SPARK/iWES_v3/genotypes/genotyping_array/plink/SPARK.iWES_v3.2024_08.GSA-24_v2 /project/cshu0237_1136/Data/SPARK/iWES_v3/metadata/SPARK.iWES_v3.2024_08.sample_metadata.tsv
 
-Rscript ../PROGRAM/plot_call_rate.r step2_overall_missing.smiss step2_overall_missing.vmiss step2
+plink2 --bfile $raw_data --update-ids Release_Notes/update_id.txt --make-bed --out DATA/step1_update_ids
+plink2 --bfile DATA/step1_update_ids --update-sex Release_Notes/update_sex.txt --make-bed --out DATA/step1_update_sex 
+plink2 --bfile DATA/step1_update_sex --pheno Release_Notes/update_pheno.txt --make-bed --out DATA/step1_update_pheno
 
-plink2 --bfile step1_update_pheno --chr Y --missing --out step2_chrY_missing
-plink2 --bfile step1_update_pheno --chr X --missing --out step2_chrX_missing
-plink2 --bfile step1_update_pheno --chr MT --missing --out step2_chrMT_missing
+Rscript PROGRAM/counts.r DATA/step1_update_pheno # Check the number of samples and SNPs
 
-Rscript ../PROGRAM/call_rate.r step2_chrY_missing.smiss step2_chrY_missing.vmiss step2
-Rscript ../PROGRAM/call_rate.r step2_chrX_missing.smiss step2_chrX_missing.vmiss step2
-Rscript ../PROGRAM/call_rate.r step2_chrMT_missing.smiss step2_overall_missing.vmiss step2
+# ----- Step 2: Initial check -----
+plink2 --bfile DATA/step1_update_pheno --missing --out DATA/step2_overall_missing
 
-# Step3: Missing call rate filtering
-plink2 --bfile step1_update_pheno --mind 0.1 --make-bed --out step3_samples_filtered
-plink2 --bfile step3_samples_filtered --geno 0.1 --make-bed --out step3_variants_filtered
+Rscript PROGRAM/plot_call_rate.r DATA/step2_overall_missing.smiss DATA/step2_overall_missing.vmiss step2
 
-plink2 --bfile step3_variants_filtered --missing --out step3_overall_missing
+plink2 --bfile DATA/step1_update_pheno --chr Y --missing --out DATA/step2_chrY_missing
+plink2 --bfile DATA/step1_update_pheno --chr X --missing --out DATA/step2_chrX_missing
+plink2 --bfile DATA/step1_update_pheno --chr MT --missing --out DATA/step2_chrMT_missing
 
-Rscript ../PROGRAM/plot_call_rate.r step3_overall_missing.smiss step3_overall_missing.vmiss step3
+# print the maximum missing rate for samples and SNPs
+Rscript PROGRAM/call_rate.r DATA/step2_chrY_missing.smiss DATA/step2_chrY_missing.vmiss 
+Rscript PROGRAM/call_rate.r DATA/step2_chrX_missing.smiss DATA/step2_chrX_missing.vmiss 
+Rscript PROGRAM/call_rate.r DATA/step2_chrMT_missing.smiss DATA/step2_overall_missing.vmiss
 
-Rscript ../PROGRAM/counts.r step3_variants_filtered
+# ----- Step 3: Missing call rate filtering -----
+plink2 --bfile DATA/step1_update_pheno --mind 0.1 --make-bed --out DATA/step3_samples_filtered
+plink2 --bfile DATA/step3_samples_filtered --geno 0.1 --make-bed --out DATA/step3_variants_filtered
 
-# Step4: Sex check
-plink1.9  --bfile step3_samples_filtered --check-sex --out step4_sexcheck
+plink2 --bfile DATA/step3_variants_filtered --missing --out DATA/step3_overall_missing
 
-Rscript ../PROGRAM/plot_sexcheck.r step4_sexcheck.sexcheck step4
+Rscript PROGRAM/plot_call_rate.r DATA/step3_overall_missing.smiss DATA/step3_overall_missing.vmiss step3
 
-plink1.9 --bfile step3_samples_filtered --check-sex 0.4 0.6 --out step4_sexcheck_new
+Rscript PROGRAM/counts.r DATA/step3_variants_filtered
 
-grep 'PROBLEM' step4_sexcheck.sexcheck > step4_sex_discrepancy.txt
-grep 'PROBLEM' step4_sexcheck_new.sexcheck > step4_sex_discrepancy_new.txt
+# ----- Step 4: Sex check -----
+## ---- Step 4.1: Chr X heterozygosity ----
+plink1.9 --bfile DATA/step3_samples_filtered --check-sex --out DATA/step4_sexcheck # Hint: Using plink1.9 rather than plink2
+grep 'PROBLEM' DATA/step4_sexcheck.sexcheck > DATA/step4_sex_discrepancy.txt 
+wc -l DATA/step4_sex_discrepancy.txt  # count the problematic sample based on threshold 0.2 and 0.8
 
-awk '{print $1, $2}' step4_sex_discrepancy_new.txt > step4_problematic_list.txt
+Rscript PROGRAM/plot_sexcheck.r DATA/step4_sexcheck.sexcheck step4
 
-plink2 --bfile step3_samples_filtered --chr Y --keep step4_problematic_list.txt --missing --out step4_Y_missing
-Rscript ../PROGRAM/sexcheck_chrY.r step4_Y_missing.smiss step4_sex_discrepancy_new.txt step4
+plink1.9 --bfile DATA/step3_samples_filtered --check-sex 0.4 0.6 --out DATA/step4_sexcheck_new # Based on previous results, re-select the threshold for genetic sex inference
+grep 'PROBLEM' DATA/step4_sexcheck_new.sexcheck > DATA/step4_sex_discrepancy_new.txt
+wc -l DATA/step4_sex_discrepancy_new.txt # count the problematic sample based on threshold 0.4 and 0.6
+awk '{print $1, $2}' DATA/step4_sex_discrepancy_new.txt > DATA/step4_problematic_list.txt
 
-plink2 --bfile step3_samples_filtered --keep step4_problematic_list.txt --make-bed --out step4_problematics
-
-conda activate latest # contained the illuminaio package
-
-# Step5: Sample heterozygosity
-plink2 --bfile step3_samples_filtered --het --out step5_samples_het
-plink2 --bfile step3_samples_filtered --chr 1-22 --het --out step5_samples_het_1-22
-
-Rscript ../PROGRAM/check_heterozygosity.r step5_samples_het.het step5_all
-Rscript ../PROGRAM/check_heterozygosity.r step5_samples_het_1-22.het step5_1-22
-
-wc -lc step5_all_heterozygosity_outliers.txt # 989 
-wc -lc step5_1-22_heterozygosity_outliers.txt # 989
-
-wc -lc step5_1-22_heterozygosity_outliers.txt # 989
+plink1.9 --bfile DATA/step3_samples_filtered --recode AD --out DATA/step4_recode
 
 
+## ---- Step 4.2: chr Y missingness ----
+plink2 --bfile DATA/step3_samples_filtered --chr Y --keep DATA/step4_problematic_list.txt --missing --out DATA/step4_Y_missing
 
-# Step6: Population Structure
-## Download and decompress 1000 Genomes phase 3 data
-refdir=1000G
-mkdir $refdir
+# If the annotated sex is female, and the missing rate of the Y chromosome is low, indicate the problem.
+Rscript PROGRAM/sexcheck_chrY.r DATA/step4_Y_missing.smiss DATA/step4_sex_discrepancy_new.txt step4 # check the chromosome Y missing rate for this problematic sample
+
+## ---- Step 4.3 Intensities of chr X and Y ----
+Rscript PROGRAM/XY_Intensities.r /project/cshu0237_1136/Data/SPARK/iWES_v2/genotypes/genotyping_array/idat/ /project/cshu0237_1136/Users/jingyux/SPARK_GenoQC/release_notes/GSA-24v2-0_A2.csv /project/cshu0237_1136/Users/jingyux/SPARK_GenoQC/DATA/step4_problematic_list.txt step4
+
+# ----- Step 5: Population Structure -----
+## Since the heterozygosity and HWE are sensitive to population structure, so we do this first.
+## ---- Step 5.1: Downloading the reference data - 1000G phase 3 from plink2 website ----
+refdir=Reference_data
 cd $refdir 
 
 # pgen=https://www.dropbox.com/s/j72j6uciq5zuzii/all_hg38.pgen.zst?dl=1
@@ -77,7 +87,6 @@ cd $refdir
 
 wget https://www.dropbox.com/s/j72j6uciq5zuzii/all_hg38.pgen.zst?dl=1 
 mv 'all_hg38.pgen.zst?dl=1' all_phase3.pgen.zst 
-
 plink2 --zst-decompress all_phase3.pgen.zst > all_phase3.pgen 
 
 wget https://www.dropbox.com/scl/fi/fn0bcm5oseyuawxfvkcpb/all_hg38_rs.pvar.zst?rlkey=przncwb78rhz4g4ukovocdxaz&dl=1
@@ -92,238 +101,165 @@ plink2 --pfile all_phase3 vzs\
        --make-bed \
        --out all_phase3 
 
-cd ..
+cd .. # go back to the root dir
 
-## extract 1-22 chr first  
-plink2 --bfile step3_samples_filtered --chr 1-22 --make-bed --out step6_1-22
-## use pruned dataset 
-plink2 --bfile step6_1-22 --indep-pairwise 50 5 0.2 --out step6_1-22_pruned
-## remove inds from pruned dataset
-plink2 --bfile step6_1-22 --extract step6_1-22_pruned.prune.in --make-bed --out step6_forpopcheck
-## Filter reference data for the same SNP set as in study
-plink2 --bfile 1000G/all_phase3 --allow-extra-chr --extract step6_1-22_pruned.prune.in --make-bed --out 1000G.pruned
+## ---- Step 5.2: Merge our data with reference data ----
+### Extract 1-22 chr first  
+plink2 --bfile DATA/step3_samples_filtered --chr 1-22 --make-bed --out DATA/step5_1-22
+### Purning
+plink2 --bfile DATA/step5_1-22 --indep-pairwise 50 5 0.2 --out DATA/step5_1-22
+### Remove inds from pruned dataset
+plink2 --bfile DATA/step5_1-22 --extract DATA/step5_1-22.prune.in --make-bed --out DATA/step5_purned
+### Filter reference data for the same SNP set as in study
+plink2 --bfile Reference_data/all_phase3 --allow-extra-chr --extract DATA/step5_1-22.prune.in --make-bed --out DATA/1000G_pruned
 
-## Check duplicate
-cut -f2 1000G.pruned.bim | sort | uniq -d > dup_snps.txt
-plink1.9 --bfile 1000G.pruned --allow-extra-chr --exclude dup_snps.txt --make-bed --out 1000G.cleaned
+### Check duplicate
+cut -f2 DATA/1000G_pruned.bim | sort | uniq -d > DATA/step5_dup_snps.txt
+plink1.9 --bfile DATA/1000G_pruned --allow-extra-chr --exclude DATA/step5_dup_snps.txt --make-bed --out DATA/1000G_unique
 
-## Check and correct chromosome mismatch
-awk 'BEGIN {OFS="\t"} FNR==NR {a[$2]=$1; next} ($2 in a && a[$2] != $1) {print a[$2],$2}' step6_forpopcheck.bim 1000G.cleaned.bim | sed -n '/^[XY]/!p' > 1000G.toUpdateChr 
+### Check and correct chromosome mismatch
+awk 'BEGIN {OFS="\t"} FNR==NR {a[$2]=$1; next} ($2 in a && a[$2] != $1) {print a[$2],$2}' DATA/step5_purned.bim DATA/1000G_unique.bim | sed -n '/^[XY]/!p' > DATA/1000G_toUpdateChr 
 
-plink1.9 --bfile 1000G.cleaned \
+plink1.9 --bfile DATA/1000G_unique \
          --allow-extra-chr \
-         --update-chr 1000G.toUpdateChr 1 2 \
+         --update-chr DATA/1000G_toUpdateChr 1 2 \
          --make-bed \
-         --out 1000G.updateChr 
+         --out DATA/1000G_updateChr 
 
-## Position mismatch
+### Position mismatch
 awk 'BEGIN {OFS="\t"} FNR==NR {a[$2]=$4; next} \
     ($2 in a && a[$2] != $4) {print a[$2],$2}' \
-     step6_forpopcheck.bim 1000G.cleaned.bim > \
-     1000G.toUpdatePos
+     DATA/step5_purned.bim DATA/1000G_unique.bim > \
+     DATA/1000G_toUpdatePos
 
-## Possible allele flips
+### Possible allele flips
 awk 'BEGIN {OFS="\t"} FNR==NR {a[$1$2$4]=$5$6; next} \
     ($1$2$4 in a && a[$1$2$4] != $5$6 && a[$1$2$4] != $6$5) {print $2}' \
-     step6_forpopcheck.bim 1000G.cleaned.bim > \
-      1000G.toFlip
+     DATA/step5_purned.bim DATA/1000G_unique.bim > \
+     DATA/1000G_toFlip
 
-## Upate positions and flip alleles
-plink1.9 --bfile 1000G.updateChr \
-         --update-map 1000G.toUpdatePos 1 2 \
-         --flip 1000G.toFlip \
+### Update positions and flip alleles
+plink1.9 --bfile DATA/1000G_updateChr \
+         --update-map DATA/1000G_toUpdatePos 1 2 \
+         --flip DATA/1000G_toFlip \
          --make-bed \
-         --out 1000G.flipped
+         --out DATA/1000G_flipped
 
-## Remove mismatch
-awk 'BEGIN {OFS="\t"} FNR==NR {a[$1$2$4]=$5$6; next} ($1$2$4 in a && a[$1$2$4] != $5$6 && a[$1$2$4] != $6$5) {print $2}'  step6_forpopcheck.bim 1000G.flipped.bim > 1000G.mismatch 
+### Remove mismatch
+awk 'BEGIN {OFS="\t"} FNR==NR {a[$1$2$4]=$5$6; next} ($1$2$4 in a && a[$1$2$4] != $5$6 && a[$1$2$4] != $6$5) {print $2}'  DATA/step5_purned.bim DATA/1000G_flipped.bim > DATA/1000G_mismatch 
      
-plink1.9 --bfile 1000G.flipped \
-         --exclude 1000G.mismatch \
+plink1.9 --bfile DATA/1000G_flipped \
+         --exclude DATA/1000G_mismatch \
          --make-bed \
-         --out 1000G.finalclean
+         --out DATA/1000G_finalcleaned
 
-## Merged study genotypes and reference data
-plink1.9 --bfile step6_forpopcheck \
-         --bmerge 1000G.finalclean.bed 1000G.finalclean.bim 1000G.finalclean.fam \
+### Merged study genotypes and reference data
+plink1.9 --bfile DATA/step5_purned.bim \
+         --bmerge DATA/1000G_finalcleaned.bed DATA/1000G_finalcleaned.bim DATA/1000G_finalcleaned.fam \
          --make-bed \
-         --out step6.merge.1000G
+         --out DATA/step5_merge_1000G
 
-## PCA
-plink2 --bfile step6.merge.1000G --threads 20 --pca approx --out step6_pca
+## ---- Step 5.3: PCA ----
+plink2 --bfile DATA/step5_merge_1000G --threads 20 --pca approx --out DATA/step5_pca
 
-## Ancestry inference by Rye
-### https://github.com/healthdisparities/rye/tree/main
-git clone https://github.com/healthdisparities/rye
+Rscripts PROGRAM/plot_pca.r DATA/step5_merge_1000G.fam Reference_data/all_phase3.psam DATA/step5_pca.eigenvec step5
 
-Rscript -e 'install.packages(c('nnls','Hmisc','parallel', 'optparse', 'crayon'))'
+## ---- Step 5.4: Supervised population inference ----
+### 1. Download the neural-admixture
+pip install neural-admixture 
 
-### Download the repository
-### Ensure permissions are correct
-cd 
-cd Software
-git clone https://github.com/healthdisparities/rye
+### 2. Prepare data
+### When using 1 A40 GPU and 20 CPUs, our server can only work with less than 10000 samples
+### Considering we will use 1000 Genomes phase 3 as reference (3202 samples), we need to separate our data by 5000 samples
+awk '{print $1, $2}' DATA/step5_purned.fam > DATA/step5_sample_ids.txt
+split -l 5000 DATA/step5_sample_ids.txt DATA/step5_sample_ids_
 
-cd rye
-### the uploader (me) wasn't smart enough to change the permissions the first time and refuses to reupload the file with right permissions
-chmod +x rye.R
+### Define the list of sample suffixes
+samples=(aa ab ac ad ae af ag ah ai)
 
-### Check if the install happened correctly
-./rye.R -h
+### Initialize counter for output file names
+counter=1
 
-### Perform 
-cd /project/cshu0237_1136/Users/jingyux/SPARK_GenoQC/DATA
-#### Required data are generate from ../PROGRAM/plot_pca_gendat_rye.r
-#### Using 1000G as reference, there are 5 real ancestries (AFR, SAS, EAS, AMR, EUR)
-/home1/jingyux/Software/rye-main/rye.R --eigenvec=step6_rye.eigenvec --eigenval=step6_pca.eigenval --pop2group=step6_rye_pop.txt --pcs=10 --out=step6_out 
+### Loop through each sample suffix
+for sample in "${samples[@]}"; do
+    plink1.9 --bfile DATA/step5_purned --keep DATA/step5_sample_ids_"${sample}" --make-bed --out DATA/step5_subset"${counter}"
+    counter=$((counter + 1))
+done
 
-### Using ../PROGRAM/ancestry_infer.r to infer ancestry and create ancetsry id list
-#### step6_AFR.txt, etc.
-wc -lc step6_AFR.txt # 28,858
-wc -lc step6_EUR.txt # 3,950
-wc -lc step6_AMR.txt # 9,439
-wc -lc step6_SAS.txt # 695
-wc -lc step6_EAS.txt # 0
-wc -lc step6_forpopcheck.fam # 42,942
+### Merge our data with reference
+for i in {1..9}; do
+    plink1.9 --bfile DATA/step5_subset${i} \
+             --bmerge DATA/1000G_finalcleaned.bed DATA/1000G_finalcleaned.bim DATA/1000G_finalcleaned.fam \
+             --make-bed \
+             --out DATA/step5_merge_subset${i}
+done
 
-## Optional 
-## Ancestry Inference by Admixture
-### Skip this step due to resource limited
-### Find the best K
-for K in $(seq 3 10); do admixture --cv step6_forpopcheck.bed $K -j18 | tee step6_log${K}.out; done 
-grep -h CV step6_log*.out
+### Generate population list file for supervised neural admixture
+#### This file is a one column, no header, charater only file
+#### Each row refers to the ancestry for corresponding sample 
+#### For the reference samples, it should be the pure population they belong to
+#### For our samples, it should be '-', or blank line, which indicates that the ancetsry need to be estimated.
+#### Deatiled information in Admixture-manual-guide
+for i in {1..9}; do
+    PROGRAM/prepare_pop.r DATA/step5_merge_subset${i}.fam step5_merge_subset${i}
+done
 
-### run admixture
-admixture step6_forpopcheck.bed k
-
-## Ancestry Inference by neural-admixture
-### This should run on discovery node
-conda create -n nadmenv python=3.9
-conda activate nadmenv
-
-pip install neural-admixture
-
-awk '{print $1, $2}' step6_forpopcheck.fam > step6_sample_ids.txt
-split -l 5000 step6_sample_ids.txt step6_neural_ad/step6_sample_ids_
-plink1.9 --bfile step6_forpopcheck --keep step6_neural_ad/step6_sample_ids_aa --make-bed --out step6_neural_ad/step6_subset1
-plink1.9 --bfile step6_forpopcheck --keep step6_neural_ad/step6_sample_ids_ab --make-bed --out step6_neural_ad/step6_subset2
-plink1.9 --bfile step6_forpopcheck --keep step6_neural_ad/step6_sample_ids_ac --make-bed --out step6_neural_ad/step6_subset3
-plink1.9 --bfile step6_forpopcheck --keep step6_neural_ad/step6_sample_ids_ad --make-bed --out step6_neural_ad/step6_subset4
-plink1.9 --bfile step6_forpopcheck --keep step6_neural_ad/step6_sample_ids_ae --make-bed --out step6_neural_ad/step6_subset5
-plink1.9 --bfile step6_forpopcheck --keep step6_neural_ad/step6_sample_ids_af --make-bed --out step6_neural_ad/step6_subset6
-plink1.9 --bfile step6_forpopcheck --keep step6_neural_ad/step6_sample_ids_ag --make-bed --out step6_neural_ad/step6_subset7
-plink1.9 --bfile step6_forpopcheck --keep step6_neural_ad/step6_sample_ids_ah --make-bed --out step6_neural_ad/step6_subset8
-plink1.9 --bfile step6_forpopcheck --keep step6_neural_ad/step6_sample_ids_ai --make-bed --out step6_neural_ad/step6_subset9
-
-plink1.9 --bfile step6_neural_ad/step6_subset1 \
-         --bmerge 1000G.finalclean.bed 1000G.finalclean.bim 1000G.finalclean.fam \
-         --make-bed \
-         --out step6_neural_ad/step6_merge_subset1
-
-plink1.9 --bfile step6_neural_ad/step6_subset2 \
-         --bmerge 1000G.finalclean.bed 1000G.finalclean.bim 1000G.finalclean.fam \
-         --make-bed \
-         --out step6_neural_ad/step6_merge_subset2
-
-plink1.9 --bfile step6_neural_ad/step6_subset3 \
-         --bmerge 1000G.finalclean.bed 1000G.finalclean.bim 1000G.finalclean.fam \
-         --make-bed \
-         --out step6_neural_ad/step6_merge_subset3
-
-plink1.9 --bfile step6_neural_ad/step6_subset4 \
-         --bmerge 1000G.finalclean.bed 1000G.finalclean.bim 1000G.finalclean.fam \
-         --make-bed \
-         --out step6_neural_ad/step6_merge_subset4
-
-plink1.9 --bfile step6_neural_ad/step6_subset5 \
-         --bmerge 1000G.finalclean.bed 1000G.finalclean.bim 1000G.finalclean.fam \
-         --make-bed \
-         --out step6_neural_ad/step6_merge_subset5
-
-plink1.9 --bfile step6_neural_ad/step6_subset6 \
-         --bmerge 1000G.finalclean.bed 1000G.finalclean.bim 1000G.finalclean.fam \
-         --make-bed \
-         --out step6_neural_ad/step6_merge_subset6
-
-plink1.9 --bfile step6_neural_ad/step6_subset7 \
-         --bmerge 1000G.finalclean.bed 1000G.finalclean.bim 1000G.finalclean.fam \
-         --make-bed \
-         --out step6_neural_ad/step6_merge_subset7
-
-plink1.9 --bfile step6_neural_ad/step6_subset8 \
-         --bmerge 1000G.finalclean.bed 1000G.finalclean.bim 1000G.finalclean.fam \
-         --make-bed \
-         --out step6_neural_ad/step6_merge_subset8
-
-plink1.9 --bfile step6_neural_ad/step6_subset9 \
-         --bmerge 1000G.finalclean.bed 1000G.finalclean.bim 1000G.finalclean.fam \
-         --make-bed \
-         --out step6_neural_ad/step6_merge_subset9
-
-cd step6_neural_ad
-Rscript ../../PROGRAM/prepare_pop.r step6_merge_subset1.fam subset1
-Rscript ../../PROGRAM/prepare_pop.r step6_merge_subset2.fam subset2
-Rscript ../../PROGRAM/prepare_pop.r step6_merge_subset3.fam subset3
-Rscript ../../PROGRAM/prepare_pop.r step6_merge_subset4.fam subset4
-Rscript ../../PROGRAM/prepare_pop.r step6_merge_subset5.fam subset5
-Rscript ../../PROGRAM/prepare_pop.r step6_merge_subset6.fam subset6
-Rscript ../../PROGRAM/prepare_pop.r step6_merge_subset7.fam subset7
-Rscript ../../PROGRAM/prepare_pop.r step6_merge_subset8.fam subset8
-Rscript ../../PROGRAM/prepare_pop.r step6_merge_subset9.fam subset9
-
-### Request for the GPU
-salloc --partition=gpu --ntasks=1 --gpus-per-task=a40:2 --mem=64G --cpus-per-task=20
+## 3. Request for GPU via discovery nodes
+salloc --partition=gpu --ntasks=1 --gpus-per-task=a40:2 --mem=998G --cpus-per-task=64
 
 module load cuda
 
-CUDA_VISIBLE_DEVICES=0 neural-admixture train --k 5 --supervised --populations_path step6_refpop_subset1.pop --data_path step6_merge_subset1.bed --save_dir /project/cshu0237_1136/Users/jingyux/SPARK_GenoQC/DATA/step6_neural_ad  --name step6_merge_subset1 --seed 42 --num_gpus 2 --num_cpus 20
-CUDA_VISIBLE_DEVICES=0 neural-admixture train --k 5 --supervised --populations_path step6_refpop_subset2.pop --data_path step6_merge_subset2.bed --save_dir /project/cshu0237_1136/Users/jingyux/SPARK_GenoQC/DATA/step6_neural_ad  --name step6_merge_subset2 --seed 42 --num_gpus 2 --num_cpus 20
-CUDA_VISIBLE_DEVICES=0 neural-admixture train --k 5 --supervised --populations_path step6_refpop_subset3.pop --data_path step6_merge_subset3.bed --save_dir /project/cshu0237_1136/Users/jingyux/SPARK_GenoQC/DATA/step6_neural_ad  --name step6_merge_subset3 --seed 42 --num_gpus 2 --num_cpus 20
-CUDA_VISIBLE_DEVICES=0 neural-admixture train --k 5 --supervised --populations_path step6_refpop_subset4.pop --data_path step6_merge_subset4.bed --save_dir /project/cshu0237_1136/Users/jingyux/SPARK_GenoQC/DATA/step6_neural_ad  --name step6_merge_subset4 --seed 42 --num_gpus 2 --num_cpus 20
-CUDA_VISIBLE_DEVICES=0 neural-admixture train --k 5 --supervised --populations_path step6_refpop_subset5.pop --data_path step6_merge_subset5.bed --save_dir /project/cshu0237_1136/Users/jingyux/SPARK_GenoQC/DATA/step6_neural_ad  --name step6_merge_subset5 --seed 42 --num_gpus 2 --num_cpus 20
-CUDA_VISIBLE_DEVICES=0 neural-admixture train --k 5 --supervised --populations_path step6_refpop_subset6.pop --data_path step6_merge_subset6.bed --save_dir /project/cshu0237_1136/Users/jingyux/SPARK_GenoQC/DATA/step6_neural_ad  --name step6_merge_subset6 --seed 42 --num_gpus 2 --num_cpus 20
-CUDA_VISIBLE_DEVICES=0 neural-admixture train --k 5 --supervised --populations_path step6_refpop_subset7.pop --data_path step6_merge_subset7.bed --save_dir /project/cshu0237_1136/Users/jingyux/SPARK_GenoQC/DATA/step6_neural_ad  --name step6_merge_subset7 --seed 42 --num_gpus 2 --num_cpus 20
-CUDA_VISIBLE_DEVICES=0 neural-admixture train --k 5 --supervised --populations_path step6_refpop_subset8.pop --data_path step6_merge_subset8.bed --save_dir /project/cshu0237_1136/Users/jingyux/SPARK_GenoQC/DATA/step6_neural_ad  --name step6_merge_subset8 --seed 42 --num_gpus 2 --num_cpus 20
-CUDA_VISIBLE_DEVICES=0 neural-admixture train --k 5 --supervised --populations_path step6_refpop_subset9.pop --data_path step6_merge_subset9.bed --save_dir /project/cshu0237_1136/Users/jingyux/SPARK_GenoQC/DATA/step6_neural_ad  --name step6_merge_subset9 --seed 42 --num_gpus 2 --num_cpus 20
+## 4. Run Supervised Neural Admixture 
+for i in {1..9}; do
+CUDA_VISIBLE_DEVICES=0 neural-admixture train --k 5 \
+                                              --supervised --populations_path  DATA/step5_merge_subset${i}.pop \
+                                              --data_path  DATA/step5_merge_subset${i}.bed \
+                                              --save_dir DATA  \
+                                              --name  DATA/step5_merge_subset${i}\
+                                              --seed 42 \
+                                              --num_gpus 2 --num_cpus 64
+done
 
-# step5. additional sample heterozygosity by ethinity
-plink1.9 --bfile step3_samples_filtered --keep step6_neural_ad/step6_AFR.txt --het --out step5_AFR_het
-plink1.9 --bfile step3_samples_filtered --keep step6_neural_ad/step6_EUR.txt --het --out step5_EUR_het
-plink1.9 --bfile step3_samples_filtered --keep step6_neural_ad/step6_AMR.txt --het --out step5_AMR_het
-plink1.9 --bfile step3_samples_filtered --keep step6_neural_ad/step6_EAS.txt --het --out step5_EAS_het
-plink1.9 --bfile step3_samples_filtered --keep step6_neural_ad/step6_SAS.txt --het --out step5_SAS_het
+## 5. Population Inference
+Rscript PROGRAM/population_inference.r step5_merge_subset step5_
 
-plink1.9 --bfile step3_samples_filtered --chr 1-22 --keep step6_neural_ad/step6_AFR.txt --het --out step5_AFR_1-22_het
-plink1.9 --bfile step3_samples_filtered --chr 1-22 --keep step6_neural_ad/step6_EUR.txt --het --out step5_EUR_1-22_het
-plink1.9 --bfile step3_samples_filtered --chr 1-22 --keep step6_neural_ad/step6_AMR.txt --het --out step5_AMR_1-22_het
-plink1.9 --bfile step3_samples_filtered --chr 1-22 --keep step6_neural_ad/step6_EAS.txt --het --out step5_EAS_1-22_het
-plink1.9 --bfile step3_samples_filtered --chr 1-22 --keep step6_neural_ad/step6_SAS.txt --het --out step5_SAS_1-22_het
+# ----- step 6: Sample heterozygosity by ethinity -----
+## ---- Step 6.1: 
+plink1.9 --bfile DATA/step3_samples_filtered --chr 1-22 --het --out DATA/step6_het
+plink1.9 --bfile DATA/step3_samples_filtered --chr 1-22 --keep DATA/step5_AFR.txt --het --out DATA/step6_AFR_het
+plink1.9 --bfile DATA/step3_samples_filtered --chr 1-22 --keep DATA/step5_EUR.txt --het --out DATA/step6_EUR_het
+plink1.9 --bfile DATA/step3_samples_filtered --chr 1-22 --keep DATA/step5_AMR.txt --het --out DATA/step6_AMR_het
+plink1.9 --bfile DATA/step3_samples_filtered --chr 1-22 --keep DATA/step5_EAS.txt --het --out DATA/step6_EAS_het
+plink1.9 --bfile DATA/step3_samples_filtered --chr 1-22 --keep DATA/step5_SAS.txt --het --out DATA/step6_SAS_het
 
-Rscript ../PROGRAM/check_heterozygosity.r step5_AFR_1-22_het.het step5_AFR_1-22
-Rscript ../PROGRAM/check_heterozygosity.r step5_EUR_1-22_het.het step5_EUR_1-22
-Rscript ../PROGRAM/check_heterozygosity.r step5_AMR_1-22_het.het step5_AMR_1-22
-Rscript ../PROGRAM/check_heterozygosity.r step5_EAS_1-22_het.het step5_EAS_1-22
-Rscript ../PROGRAM/check_heterozygosity.r step5_SAS_1-22_het.het step5_SAS_1-22
+Rscript PROGRAM/check_heterozygosity.r DATA/step6_het.het step6_all
+Rscript PROGRAM/check_heterozygosity.r DATA/step6_AFR_het.het step6_AFR
+Rscript PROGRAM/check_heterozygosity.r DATA/step6_EUR_het.het step6_EUR
+Rscript PROGRAM/check_heterozygosity.r DATA/step6_AMR_het.het step6_AMR
+Rscript PROGRAM/check_heterozygosity.r DATA/step6_EAS_het.het step6_EAS
+Rscript PROGRAM/check_heterozygosity.r DATA/step6_SAS_het.het step6_SAS
 
+wc -l DATA/step6_all_heterozygosity_outliers.txt # 9
+wc -l DATA/step6_AFR_heterozygosity_outliers.txt # 9
+wc -l DATA/step6_EUR_heterozygosity_outliers.txt # 757
+wc -l DATA/step6_AMR_heterozygosity_outliers.txt # 46
+wc -l DATA/step6_EAS_heterozygosity_outliers.txt # 2
+wc -l DATA/step6_SAS_heterozygosity_outliers.txt # 16
 
-wc -lc step5_AFR_1-22_heterozygosity_outliers.txt # 9
-wc -lc step5_EUR_1-22_heterozygosity_outliers.txt # 757
-wc -lc step5_AMR_1-22_heterozygosity_outliers.txt # 46
-wc -lc step5_EAS_1-22_heterozygosity_outliers.txt # 2
-wc -lc step5_SAS_1-22_heterozygosity_outliers.txt # 16
+## ---- Step 6.2: Plotting heterozygosity rate with chromosome X and Y intensities ---
+## ---- Step 6.3: Detecting long runs of homozygosity ----
+plink1.9 --bfile DATA/step3_samples_filtered --chr 1-22 --homozyg --homozyg-kb 1000 --homozyg-snp 50 --homozyg-gap 100 --out DATA/step6_all_ROH
+plink1.9 --bfile DATA/step3_samples_filtered --chr 1-22 --keep DATA/step5_AFR.txt --homozyg --homozyg-kb 1000 --homozyg-snp 50 --homozyg-gap 100 --out DATA/step6_AFR_ROH
+plink1.9 --bfile DATA/step3_samples_filtered --chr 1-22 --keep DATA/step5_EUR.txt --homozyg --homozyg-kb 1000 --homozyg-snp 50 --homozyg-gap 100 --out DATA/step6_AMR_ROH
+plink1.9 --bfile DATA/step3_samples_filtered --chr 1-22 --keep DATA/step5_AMR.txt --homozyg --homozyg-kb 1000 --homozyg-snp 50 --homozyg-gap 100 --out DATA/step6_EAS_ROH
+plink1.9 --bfile DATA/step3_samples_filtered --chr 1-22 --keep DATA/step5_EAS.txt --homozyg --homozyg-kb 1000 --homozyg-snp 50 --homozyg-gap 100 --out DATA/step6_EAS_ROH
+plink1.9 --bfile DATA/step3_samples_filtered --chr 1-22 --keep DATA/step5_SAS.txt --homozyg --homozyg-kb 1000 --homozyg-snp 50 --homozyg-gap 100 --out DATA/step6_EAS_ROH
 
-# step5. ROH
-plink1.9 --bfile step3_samples_filtered --chr 1-22 --keep step6_neural_ad/step6_AFR.txt --homozyg --homozyg-kb 1000 --homozyg-snp 50 --homozyg-gap 100 --out step5_AFR_ROH
-plink1.9 --bfile step3_samples_filtered --chr 1-22 --keep step6_neural_ad/step6_AMR.txt --homozyg --homozyg-kb 1000 --homozyg-snp 50 --homozyg-gap 100 --out step5_AMR_ROH
-plink1.9 --bfile step3_samples_filtered --chr 1-22 --keep step6_neural_ad/step6_EAS.txt --homozyg --homozyg-kb 1000 --homozyg-snp 50 --homozyg-gap 100 --out step5_EAS_ROH
-plink1.9 --bfile step3_samples_filtered --chr 1-22 --keep step6_neural_ad/step6_EUR.txt --homozyg --homozyg-kb 1000 --homozyg-snp 50 --homozyg-gap 100 --out step5_EUR_ROH
-plink1.9 --bfile step3_samples_filtered --chr 1-22 --keep step6_neural_ad/step6_SAS.txt --homozyg --homozyg-kb 1000 --homozyg-snp 50 --homozyg-gap 100 --out step5_SAS_ROH
-
-Rscript ../PROGRAM/plot_ROH.r step5_AFR_ROH.hom.indiv step5_AFR_het.het AFR
-Rscript ../PROGRAM/plot_ROH.r step5_AMR_ROH.hom.indiv step5_AMR_het.het AMR
-Rscript ../PROGRAM/plot_ROH.r step5_EAS_ROH.hom.indiv step5_EAS_het.het EAS
-Rscript ../PROGRAM/plot_ROH.r step5_EUR_ROH.hom.indiv step5_EUR_het.het EUR
-Rscript ../PROGRAM/plot_ROH.r step5_SAS_ROH.hom.indiv step5_SAS_het.het SAS
+Rscript PROGRAM/plot_ROH.r DATA/step6_AFR_ROH.hom.indiv DATA/step6_AFR_het.het AFR
+Rscript PROGRAM/plot_ROH.r DATA/step6_AMR_ROH.hom.indiv DATA/step6_AMR_het.het AMR
+Rscript PROGRAM/plot_ROH.r DATA/step6_EAS_ROH.hom.indiv DATA/step6_EAS_het.het EAS
+Rscript PROGRAM/plot_ROH.r DATA/step6_EUR_ROH.hom.indiv DATA/step6_EUR_het.het EUR
+Rscript PROGRAM/plot_ROH.r DATA/step6_SAS_ROH.hom.indiv DATA/step6_SAS_het.het SAS
 
 # Step7. Compute HWE in cases and controls by ancestry
 plink1.9 --bfile step3_samples_filtered --filter-controls --keep step6_neural_ad/step6_AFR.txt --hardy --out step7_Controls_AFR_HWE
