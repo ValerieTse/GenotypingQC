@@ -9,8 +9,14 @@ This repository outlines the quality control (QC) workflow for genomic data proc
 - **Steps:**
   - Create a new conda environment.
   - Install the required packages:
-    - `neural-admixture`
-    - `illuminaio`
+    - `neural-admixture` -> For population inference.
+    - `illuminaio` -> For chromosome X and Y intensities reading.
+- **Commands:**
+  ```bash
+  conda create -n qc_env python=3.9
+  conda activate qc_env
+  pip install neural-admixture
+  conda install bioconda::bioconductor-illuminaio
 
 ### 1b. Directory Setup
 - **Objective:** Organize your work environment.
@@ -38,7 +44,14 @@ This repository outlines the quality control (QC) workflow for genomic data proc
     - Family information
     - Phenotype
     - Annotated sex
-
+- **Commands:**
+  ```bash
+  plink --bfile your_data \
+        --update_ids your_ids.txt \
+        --update_sex your_sex.txt \
+        --pheno your_pheno.txt \
+        --make-bed --out your_data
+  
 ---
 
 ## 3. Initial Check
@@ -47,6 +60,15 @@ This repository outlines the quality control (QC) workflow for genomic data proc
 - **Steps:**
   - **Sample and Variant Counts:** Confirm the sample size and variant coverage.
   - **Missingness Analysis:** Check the missing data rates for both samples and variants.
+- **Commands:**
+  ```bash
+  plink --bfile your_data \
+        --missing \
+        --out missingness
+- **Outputs:**
+-   If you used `plink1.9`, you will get `.lmiss` and `.imiss` files.
+-   If you used `plink2`, you will get `.smiss` and `.vmiss` files.
+-   Check the Plink website for the outputs.
   
 ---
 
@@ -61,6 +83,11 @@ This repository outlines the quality control (QC) workflow for genomic data proc
      - Decide on a threshold for acceptable call rates.
   3. **Filtering:**
      - Remove samples or variants that fall below the set threshold.
+     - **Commands:**
+       ```bash
+       plink --bfile your_data \
+             --mind 0.1 --geno 0.1 \
+             --make-bed --out your_data
   4. **Post-filtering Check:**
      - Re-assess sample size, variant count, and overall missingness statistics after filtering.
 
@@ -72,17 +99,29 @@ This repository outlines the quality control (QC) workflow for genomic data proc
 - **Steps:**
   1. **X Chromosome Heterozygosity:**
      - Determine the appropriate threshold for inferring genetic sex.
+     - **Commands:**
+       ```bash
+       plink --bfile your_data \
+             --check-sex \
+             --out your_data
   2. **Comparative Analysis:**
      - Compare genetic sex assignments with the annotated (metadata) sex.
      - Identify and flag samples with discrepancies.
   3. **Y Chromosome Missingness:**
      - Evaluate the Y chromosome call rates in problematic samples.
+       - **Commands:**
+       ```bash
+       plink --bfile your_data \
+             --keep problematic_list.txt \
+             --chr Y --missing \
+             --out your_data
   4. **Intensity Checks (Optional):**
      - If `.idat` files are available, extract and inspect X and Y chromosome intensities.
+     - Using the `illuminaio` R package.
   5. **Addressing PLINK Limitations:**
      - The PLINK `--check-sex` command only provides an F-statistic.
      - To estimate the heterozygosity rate for the X chromosome:
-       - Extract the X chromosome data.
+       - Extract the X chromosome data. `--chr X``
        - Recode it as chromosome 1 (satisfying the requirement for the `--het` command).
        - Calculate the heterozygosity rate accordingly.
 
@@ -90,12 +129,21 @@ This repository outlines the quality control (QC) workflow for genomic data proc
 
 ## 6. Population Structure Analysis
 
-- **Objective:** Account for population stratification which can affect heterozygosity and HWE tests.
+- **Objective:** Account for population stratification, which can affect heterozygosity and HWE tests.
 - **Steps:**
   1. **Reference Dataset:**
      - Download a reference dataset (e.g., 1000 Genomes Phase 3).
   2. **LD Pruning:**
      - Perform linkage disequilibrium (LD) pruning on both your data and the reference dataset.
+     - **Commands:**
+     ```bash
+     plink --bfile your_data \
+           --indep-pairwise 50 5 0.2 \
+           --out your_data
+     
+     plink --bfile your_data \
+           --extract your_data.prune.in \
+           --make-bed --out your_data
   3. **Data Merging:**
      - Merge the pruned datasets.
      - Follow step-by-step checks to ensure data compatibility and correctness.
@@ -111,6 +159,9 @@ This repository outlines the quality control (QC) workflow for genomic data proc
 - **Objective:** Detect samples with aberrant heterozygosity which may indicate quality problems.
 - **Steps:**
   - Use principal components to compute a population-corrected heterozygosity measure.
+    $$
+    Raw heterozygosity rate = Corrected heterozygosity rate + PCs
+    $$
   - Flag samples with extreme heterozygosity values for further review.
 
 ---
@@ -119,8 +170,13 @@ This repository outlines the quality control (QC) workflow for genomic data proc
 
 - **Objective:** Assess variant quality within subgroups by testing for deviations from HWE.
 - **Steps:**
-  - Conduct HWE tests separately for cases and controls.
-  - Adjust the analysis based on the detected population structure.
+  - Conduct HWE tests by race.
+  - Adjust the threshold based on the detected population structure.
+- **Command:**
+  ```bash
+  plink --bfile your_data \
+        --hardy \
+        --out your_data
 
 ---
 
@@ -131,6 +187,11 @@ This repository outlines the quality control (QC) workflow for genomic data proc
   - Define a threshold for the minimum acceptable minor allele frequency.
   - Filter out variants falling below this threshold.
   - Re-assess variant counts post-filtering.
+- **Command:**
+  ```bash
+  plink --bfile your_data \
+        --freq  \
+        --out your_data
 
 ---
 
