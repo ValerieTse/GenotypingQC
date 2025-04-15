@@ -12,21 +12,31 @@
 conda create -n geno_qc python=3.9
 conda activate geno_qc 
 
-module load plink2 # plink2 is still at the beta phase, if you download plink, use it instead.
-raw_data=/project/cshu0237_1136/Data/SPARK/iWES_v3/genotypes/genotyping_array/plink/SPARK.iWES_v3.2024_08.GSA-24_v2 # raw data, directory + prefix
+# plink2 is still at the beta phase, if you download plink1.9, use it instead.
+# plink2 sometimes will have multi-thread issues, if it has an error, add `--thread 1` in your plink command.
+# plink2 can do `-pca approx` but plink1.9 cannot, except this step and sex check (can only be done with plink1.9), others are the same.
+# Carc has some issues with `module load plink1.9`, please download it by yourself.
 
+module load plink2 
+
+# For SPARK cohort, we have 3 datsets for the genotyping data (Array_v1, Array_v2, Sequencing)
 mkdir Array_v1/{DATA,OUTPUTS} Array_v2/{DATA,OUTPUTS} Sequencing/{DATA,OUTPUTS} PROGRAM Reference_data Release_Notes # creating the directory
-dir=Array_v2
+
+# Using Array_v2 as example
+dir=Array_v2 
 data_dir=/DATA
 output_dir=/OUTPUTS
 program_dir=PROGRAM
 release_notes=Release_Notes
 reference_data=Reference_data
+raw_data=/project/cshu0237_1136/Data/SPARK/iWES_v3/genotypes/genotyping_array/plink/SPARK.iWES_v3.2024_08.GSA-24_v2 
+# raw data = directory + prefix of the bfile.
+meta_data=/project/cshu0237_1136/Data/SPARK/iWES_v3/metadata/SPARK.iWES_v3.2024_08.sample_metadata.tsv
 
 # ----- Step 1: Update the .fam file -----
 Rscript $program_dir/update_info_extract.r \
-        /project/cshu0237_1136/Data/SPARK/iWES_v3/genotypes/genotyping_array/plink/SPARK.iWES_v3.2024_08.GSA-24_v2.fam \
-        /project/cshu0237_1136/Data/SPARK/iWES_v3/metadata/SPARK.iWES_v3.2024_08.sample_metadata.tsv
+        $raw_data.fam \
+        $meta_data
 
 plink2 --bfile $raw_data --update-ids $release_notes/update_id.txt --make-bed --out $dir$data_dir/step1_update_ids
 plink2 --bfile $dir$data_dir/step1_update_ids --update-sex $release_notes/update_sex.txt --make-bed --out $dir$data_dir/step1_update_sex 
@@ -50,35 +60,28 @@ Rscript $program_dir/call_rate.r $dir$data_dir/step2_chrX_missing.smiss $dir$dat
 Rscript $program_dir/call_rate.r $dir$data_dir/step2_chrMT_missing.smiss $dir$data_dir/step2_chrMT_missing.vmiss
 
 # ----- Step 3: Missing call rate filtering -----
+# Based on the results (hists) from step 2 to decide the threshold for missingness filtering
 plink2 --bfile $dir$data_dir/step1_update_pheno --mind 0.1 --geno 0.1 --make-bed --out $dir$data_dir/step3_filtered
 
+# Double check
 plink2 --bfile $dir$data_dir/step3_filtered --missing --out $dir$data_dir/step3_overall_missing
-
 Rscript $program_dir/plot_call_rate.r $dir$data_dir/step3_overall_missing.smiss $dir$data_dir/step3_overall_missing.vmiss step3 $dir
 Rscript $program_dir/counts.r $dir$data_dir/step3_filtered
 
 # ----- Step 4: Sex check -----
 ## ---- Step 4.1: Chr X heterozygosity ----
+## Using `--check-sex` check for Chr X heterozygosity and detect the problematic samples.
 plink --bfile $dir$data_dir/step3_filtered --check-sex --out $dir$data_dir/step4_sexcheck # Hint: Using plink rather than plink2
 grep 'PROBLEM' $dir$data_dir/step4_sexcheck.sexcheck > $dir$data_dir/step4_sex_discrepancy.txt 
 wc -l $dir$data_dir/step4_sex_discrepancy.txt  # count the problematic sample based on threshold 0.2 and 0.8
 
 Rscript $program_dir/plot_sexcheck.r $dir$data_dir/step4_sexcheck.sexcheck step4 $dir
 
-# Based on previous results, re-select the threshold for genetic sex inference
+## Based on previous results, re-select the threshold for genetic sex inference
 plink --bfile $dir$data_dir/step3_filtered --check-sex 0.4 0.6 --out $dir$data_dir/step4_sexcheck_new 
 grep 'PROBLEM' $dir$data_dir/step4_sexcheck_new.sexcheck > $dir$data_dir/step4_sex_discrepancy_new.txt
 wc -l $dir$data_dir/step4_sex_discrepancy_new.txt # count the problematic sample based on threshold 0.4 and 0.6
 awk '{print $1, $2}' $dir$data_dir/step4_sex_discrepancy_new.txt > $dir$data_dir/step4_problematic_list.txt
-
-# --check-sex will only output the F-stat, recode chr X -> chr 1, and compute the heterozygosity rate for chr X only.
-plink --bfile $dir$data_dir/step3_filtered --chr X --make-bed --out $dir$data_dir/step4_chrX
-
-awk '{if ($1 == 23) $1=1; print}' $dir$data_dir/step4_chrX.bim > $dir$data_dir/step4_chrX.bim.tmp
-mv $dir$data_dir/step4_chrX.bim.tmp $dir$data_dir/step4_chrX.bim
-
-plink --bfile $dir$data_dir/step4_chrX --chr 1 --het --out $dir$data_dir/step4_chrx_het
-Rscript $program_dir/het_rates.r $dir$data_dir/step4_chrx_het.het step4_chrx $dir
 
 ## ---- Step 4.2: chr Y missingness ----
 plink2 --bfile $dir$data_dir/step3_filtered --chr Y --keep $dir$data_dir/step4_problematic_list.txt --missing --out $dir$data_dir/step4_Y_missing
@@ -98,9 +101,19 @@ Rscript $program_dir/XY_Intensities.r \
         $dir$data_dir/step4_sexcheck_new.sexcheck
         step4 $dir
 
+## ---- Step 4.4 Chr X heterozygosity rate ----
+## `--check-sex` will only output the F-stat, recode chr X -> chr 1, and compute the heterozygosity rate for chr X only.
+plink --bfile $dir$data_dir/step3_filtered --chr X --make-bed --out $dir$data_dir/step4_chrX
+
+awk '{if ($1 == 23) $1=1; print}' $dir$data_dir/step4_chrX.bim > $dir$data_dir/step4_chrX.bim.tmp
+mv $dir$data_dir/step4_chrX.bim.tmp $dir$data_dir/step4_chrX.bim
+
+plink --bfile $dir$data_dir/step4_chrX --chr 1 --het --out $dir$data_dir/step4_chrx_het
+Rscript $program_dir/het_rates.r $dir$data_dir/step4_chrx_het.het step4_chrx $dir
+
 # ----- Step 5: Population Structure -----
-## Since the heterozygosity and HWE are sensitive to population structure, so we do this first.
-## ---- Step 5.1: Downloading the reference data - 1000G phase 3 from plink2 website ----
+## Since the heterozygosity and HWE are sensitive to population structure, we do this first.
+## ---- Step 5.1: Downloading the reference data - 1000G phase 3 from the plink2 website ----
 refdir=Reference_data
 cd $refdir 
 
