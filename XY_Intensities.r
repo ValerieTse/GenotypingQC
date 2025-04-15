@@ -9,18 +9,23 @@ library(data.table)
 library(parallelly)  # For CPU limit detection
 library(tidyr)
 library(dplyr)
+library(ggplot2)
 
 # ----- Parse Command Line Arguments -----
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) < 4) {
-  stop("Usage: Rscript plot_call_rate.r <idat_dir> <array_manifest_file> <problematics_list> <prefix>")
+if (length(args) < 5) {
+  stop("Usage: Rscript plot_call_rate.r <idat_dir> <array_manifest_file> <problematics_list> <sexcheck_file> <prefix> <Folder>")
 }
 
 idat_dir <- args[1]
 manifest_path <- args[2]
-problematics_lidt <- args[3]
-prefix <- args[4]
+problematics_list <- args[3]
+sexcheck_file <- args[4]
+prefix <- args[5]
+Folder <- args[6]
 
+problematics <- read.table(problematics_list)
+sexcheck <- read.table(sexcheck_file, header = TRUE) %>% filter(IID %in% summary_df$SampleID) %>% select(IID, PEDSEX, SNPSEX, X_het = F)
 
 # ---- 1. Set safe parallel workers ----
 # Detect available CPU resources
@@ -37,13 +42,13 @@ cat(sprintf(
 plan(multisession, workers = safe_workers)
 
 # Paths (UPDATE THESE)
-idat_dir <- "/project/cshu0237_1136/Data/SPARK/iWES_v2/genotypes/genotyping_array/idat/"
-manifest_path <- "/project/cshu0237_1136/Users/jingyux/SPARK_GenoQC/release_notes/GSA-24v2-0_A2.csv"
-output_dir <- "/project/cshu0237_1136/Users/jingyux/SPARK_GenoQC/DATA"
-problematics <- read.table("/project/cshu0237_1136/Users/jingyux/SPARK_GenoQC/DATA/step4_problematic_list.txt")
+# idat_dir <- "/project/cshu0237_1136/Data/SPARK/iWES_v2/genotypes/genotyping_array/idat/"
+# manifest_path <- "/project/cshu0237_1136/Users/jingyux/SPARK_GWAS_QC/Release_Notes/GSA-24v2-0_A2.csv"
+# output_dir <- "/project/cshu0237_1136/Users/jingyux/SPARK_GenoQC/DATA"
+# problematics <- read.table("/project/cshu0237_1136/Users/jingyux/SPARK_GWAS_QC/Array_v2/DATA/step4_problematic_list.txt")
 
 # Create output directory
-if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
+# if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 
 # ---- 1. Load manifest with proper typing ----
 lines <- readLines(manifest_path)
@@ -147,7 +152,7 @@ results <- future_map(
   .options = furrr_options(seed = TRUE)
 ) %>% compact()
 
-saveRDS(results,file.path("DATA/", prefix, "_XY_raw_results.rds"))
+saveRDS(results,paste0(Folder, "/DATA/", prefix, "_XY_raw_results.rds"))
 
 # ---- 5. Save results ----
 # Summary CSV with X/Y intensities
@@ -158,10 +163,12 @@ summary_df <- map_dfr(results, ~ .x$Chromosome_Stats) %>%
   ) %>%
   select(SampleID, Subfolder, everything())
 
-fwrite(summary_df, file.path("DATA/", prefix, "_XY_chromosome_summary.csv"))
+fwrite(summary_df, paste0(Folder, "/DATA/", prefix, "_XY_chromosome_summary.csv"))
 
 summary_X <- summary_df %>% filter(Chr == "X") %>% select(IID = SampleID, ChrX=Chr, X_Mean_Intensity = Mean_Intensity, X_N_Probes = N_Probes)
 summary_Y <- summary_df %>% filter(Chr == "Y") %>% select(IID = SampleID, ChrY=Chr, Y_Mean_Intensity = Mean_Intensity, Y_N_Probes = N_Probes)
+summary_new <- merge(summary_X,summary_Y, by = "IID")
+summary_new <- merge(summary_new, sexcheck, by = "IID")
 
 # ---- 6. Plotting ----
 p1 <- ggplot(summary_new, aes(x = X_Mean_Intensity, y = Y_Mean_Intensity, color = as.factor(SNPSEX))) +
@@ -172,4 +179,4 @@ p1 <- ggplot(summary_new, aes(x = X_Mean_Intensity, y = Y_Mean_Intensity, color 
                labels = c("0" = "NA", "1" = "Male", "2" = "Female")) +
           theme_bw()
 
-ggsave(paste0("OUTPUTS/", prefix, "_YX_intesity.png"), plot = p1, width = 6, height = 5, dpi = 300)
+ggsave(paste0(Folder, "/OUTPUTS/", prefix, "_YX_intesity.png"), plot = p1, width = 6, height = 5, dpi = 300)
