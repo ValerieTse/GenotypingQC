@@ -26,4 +26,4 @@ hist_plot <- ggplot(sex_data, aes(x = F)) +
                     y = "Count") +
                 theme_bw()
 
-ggsave(paste0(Folder, "/OUTPUTS", prefix, "_sexcheck_histogram.png"), hist_plot, width = 8, height = 5)
+ggsave(paste0(Folder, "/OUTPUTS/", prefix, "_sexcheck_histogram.png"), hist_plot, width = 8, height = 5)
