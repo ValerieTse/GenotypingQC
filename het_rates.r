@@ -18,4 +18,4 @@ het_df$het_rate <- (het_df$N_NM - het_df$O_HOM) / het_df$N_NM
 
 result <- het_df[, c("FID", "IID", "het_rate")]
 
-write.table(paste0(Folder, "/DATA/", prefix,"_het.txt"), quote = FALSE, sep = "\t", col.names = FALSE, row.names=FALSE)
+write.table(result, paste0(Folder, "/DATA/", prefix,"_het.txt"), quote = FALSE, sep = "\t", col.names = FALSE, row.names=FALSE)
