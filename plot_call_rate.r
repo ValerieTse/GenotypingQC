@@ -6,16 +6,17 @@ library(ggplot2)
 # ----- Parse Command Line Arguments -----
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 3) {
-  stop("Usage: Rscript plot_call_rate.r <smiss_file> <vmiss_file> <prefix>")
+  stop("Usage: Rscript plot_call_rate.r <smiss_file> <vmiss_file> <prefix> <Folder>")
 }
 
 smiss_file <- args[1]
 vmiss_file <- args[2]
 prefix <- args[3]
+Folder <- args[4]
 
 # ----- Read and Process .smiss File -----
 smiss <- read.table(smiss_file, header = FALSE)
-colnames(smiss) <- c("FID", "IID", "PHENO1", "MISSING_CT", "OBS_CT", "F_MISS")
+colnames(smiss) <- c("FID", "IID", "MISSING_CT", "OBS_CT", "F_MISS")
 smiss$call_rate <- 1 - smiss$F_MISS
 
 # Print the maximum missing rate for samples
@@ -32,7 +33,7 @@ hist_smiss <- ggplot(smiss, aes(x = call_rate)) +
   theme_bw()
 
 # Save the sample call rate histogram with prefix
-ggsave(paste0("OUTPUTS/", prefix, "_hist_sample_call_rate.png"), plot = hist_smiss, width = 6, height = 4, dpi = 300)
+ggsave(paste0(Folder,"/OUTPUTS/", prefix, "_hist_sample_call_rate.png"), plot = hist_smiss, width = 6, height = 4, dpi = 300)
 
 # ----- Read and Process .vmiss File -----
 vmiss <- read.table(vmiss_file, header = FALSE)
@@ -54,15 +55,15 @@ hist_vmiss <- ggplot(vmiss, aes(x = call_rate)) +
   theme_bw()
 
 # Save the variant call rate histogram with prefix
-ggsave(paste0("OUTPUTS/",prefix, "_hist_variant_call_rate.png"), plot = hist_vmiss, width = 6, height = 4, dpi = 300)
+ggsave(paste0(Folder, "/OUTPUTS/",prefix, "_hist_variant_call_rate.png"), plot = hist_vmiss, width = 6, height = 4, dpi = 300)
 
 # ----- Save Boxplot of Sample Call Rate (Base R Plot) -----
-png(paste0("OUTPUTS/", prefix, "_boxplot_sample_call_rate.png"), width = 600, height = 400)
+png(paste0(Folder, "/OUTPUTS/", prefix, "_boxplot_sample_call_rate.png"), width = 600, height = 400)
 boxplot(smiss$call_rate, main = "Sample Call Rate")
 dev.off()
 
 # ----- Save Boxplot of Variant Call Rate by Chromosome (Base R Plot) -----
-png(paste0("OUTPUTS/", prefix, "_boxplot_variant_call_rate_by_chrom.png"), width = 600, height = 400)
+png(paste0(Folder, "/OUTPUTS/", prefix, "_boxplot_variant_call_rate_by_chrom.png"), width = 600, height = 400)
 par(mar = c(7, 4, 4, 2) + 0.1)
 boxplot(call_rate ~ CHROM, data = vmiss,
         main = "SNP Call Rate by Chromosome",
