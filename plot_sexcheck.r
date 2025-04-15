@@ -7,11 +7,12 @@ suppressMessages(library(ggplot2))
 args <- commandArgs(trailingOnly = TRUE)
 
 if (length(args) != 2) {
-  stop("Usage: Rscript plot_sexcheck.r <sexcheck_file_path> <output_prefix>")
+  stop("Usage: Rscript plot_sexcheck.r <sexcheck_file_path> <output_prefix> <Folder>")
 }
 
 sexcheck_file <- args[1]
 prefix <- args[2]
+Folder <- args[3]
 
 # Read the file; adjust the file path if needed.
 sex_data <- read.table(sexcheck_file <- args[1], header = TRUE)
@@ -25,4 +26,4 @@ hist_plot <- ggplot(sex_data, aes(x = F)) +
                     y = "Count") +
                 theme_bw()
 
-ggsave(paste0("OUTPUTS", prefix, "_sexcheck_histogram.png"), hist_plot, width = 8, height = 5)
+ggsave(paste0(Folder, "/OUTPUTS", prefix, "_sexcheck_histogram.png"), hist_plot, width = 8, height = 5)
