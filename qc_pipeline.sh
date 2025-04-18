@@ -38,9 +38,10 @@ Rscript $program_dir/update_info_extract.r \
         $raw_data.fam \
         $meta_data
 
-plink2 --bfile $raw_data --update-ids $release_notes/update_id.txt --make-bed --out $dir$data_dir/step1_update_ids
-plink2 --bfile $dir$data_dir/step1_update_ids --update-sex $release_notes/update_sex.txt --make-bed --out $dir$data_dir/step1_update_sex 
-plink2 --bfile $dir$data_dir/step1_update_sex --pheno $release_notes/update_pheno.txt --make-bed --out $dir$data_dir/step1_update_pheno
+plink --bfile $raw_data --update-ids $release_notes/update_id.txt --make-bed --out $dir$data_dir/step1_update_ids
+plink --bfile $dir$data_dir/step1_update_ids --update-parents $release_notes/update_parent.txt --make-bed --out $dir$data_dir/step1_update_parents
+plink --bfile $dir$data_dir/step1_update_parents --update-sex $release_notes/update_sex.txt --make-bed --out $dir$data_dir/step1_update_sex 
+plink --bfile $dir$data_dir/step1_update_sex --pheno $release_notes/update_pheno.txt --make-bed --out $dir$data_dir/step1_update_pheno
 
 # Check the number of samples and SNPs
 Rscript $program_dir/counts.r $dir$data_dir/step1_update_pheno 
