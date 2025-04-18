@@ -86,7 +86,8 @@ This repository outlines the quality control (QC) workflow for genomic data proc
      - **Commands:**
        ```bash
        plink --bfile your_data \
-             --mind 0.1 --geno 0.1 \
+             --mind 0.1 \
+             --geno 0.1 \
              --make-bed --out your_data
   4. **Post-filtering Check:**
      - Re-assess sample size, variant count, and overall missingness statistics after filtering.
