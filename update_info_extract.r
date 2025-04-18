@@ -19,31 +19,39 @@ old.fam <- fread(fam_file)
 colnames(old.fam) <- c("FID", "IID", "PID", "MID", "Sex", "P")
 
 # ----- Generate the reference data -----
+## ---- Family ID ----
 update_ids1 <- old.fam %>% select(FID, IID)
 update_ids2 <- update.info %>% select(sfid, spid)
 update_ids <- merge(update_ids1, update_ids2, by.x = "IID", by.y = "spid", all.x = TRUE)
 sum(is.na(update_ids$sfid))
 update_ids$spid <- update_ids$IID
 update_ids <- update_ids %>% select(FID, IID, sfid, spid)
-
-# ----- Write to a file for PLINK -----
-write.table(update_ids, file = file.path("/Release_Notes/update_id.txt"),
+write.table(update_ids, file = file.path("Release_Notes/update_id.txt"),
             quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
 
+## ---- Father and Mother ID ----
+update_parents1 <- update_ids %>% select(sfid,spid)
+update_parents2 <- update.info %>% select(sfid, spid, father, mother)
+update_parents <- merge(update_parents1, update_parents2, by = c("sfid", "spid"), all.x = TRUE)
+sum(is.na(update_ids$sfid))
+update_parents <- update_parents %>% select(sfid, spid, father, mother)
+write.table(update_parents, file = file.path("Release_Notes/update_parent.txt"),
+            quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
+
+## ---- Phenotype ----
 pheno1 <- update.info %>% select(spid, asd) %>% mutate(asd = ifelse(asd == "True", 1, ifelse(asd == "False", 2, 0)))
 pheno2 <- update_ids %>% select(sfid, spid)
 pheno <- merge(pheno2, pheno1, by.x = "spid", by.y = "spid", all.x = TRUE)
 sum(is.na(pheno$asd))
 pheno <- pheno %>% select(sfid, spid, asd)
-
-write.table(pheno, file = file.path("/Release_Notes/update_pheno.txt"),
+write.table(pheno, file = file.path("Release_Notes/update_pheno.txt"),
             quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
 
+## ---- Sex information ----
 update_sex1 <- update.info %>% select(spid, sex) %>% mutate(sex = ifelse(sex == "Male", 1, ifelse(sex == "Female", 2, 0)))
 update_sex2 <- update_ids %>% select(sfid, spid)
 update_sex <- merge(update_sex2, update_sex1, by.x = "spid", by.y = "spid", all.x = TRUE)
 sum(is.na(update_sex$sex))
 update_sex <- update_sex %>% select(sfid, spid, sex)
-
-write.table(update_sex, file = file.path("/Release_Notes/update_sex.txt"),
+write.table(update_sex, file = file.path("Release_Notes/update_sex.txt"),
             quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
