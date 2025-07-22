@@ -1,0 +1,129 @@
+module load r
+module load plink2
+
+cd /scratch1/qingtan/SPARK_WES_WGS
+mkdir -p Array_v2/{DATA,OUTPUTS,Release_Notes,}  
+touch Array_v2/Release_Notes/update_id.txt
+touch Array_v2/Release_Notes/update_parent.txt
+touch Array_v2/Release_Notes/update_pheno.txt
+touch Array_v2/Release_Notes/update_sex.txt
+
+# compare the pipeline 
+dir=/project2/cshu0237_1641/Users/jingyux/GenoQC_0706/Array_v2
+data_dir=/project2/cshu0237_1641/Users/jingyux/GenoQC_0706/Array_v2/DATA
+output_dir=/project2/cshu0237_1641/Users/jingyux/GenoQC_0706/Array_v2/OUTPUTS
+program_dir=/project2/cshu0237_1641/Users/jingyux/GenoQC_0706/QC_Script
+release_notes=/project2/cshu0237_1641/Users/jingyux/GenoQC_0706/Array_v2/Release_Notes
+# reference_data=Reference_data
+
+# Using Array_v2 as example
+# /project2/cshu0237_1689/SPARK/iWES_v2/genotypes/genotyping_array/idat
+raw_data=/project2/cshu0237_1689/SPARK/iWES_v3/genotypes/genotyping_array/plink/SPARK.iWES_v3.2024_08.GSA-24_v2
+# raw data = directory + prefix of the bfile.
+meta_data=/project2/cshu0237_1689/SPARK/iWES_v3/metadata/SPARK.iWES_v3.2024_08.sample_metadata.tsv
+cd $dir
+
+# ----- Step 1: Update the .fam file -----
+Rscript $program_dir/update_info_extract.r \
+        $raw_data.fam \
+        $meta_data
+
+../plink --bfile $raw_data \
+  --update-ids $release_notes/update_id.txt \
+  --make-bed \
+  --out $data_dir/step1_update_ids
+
+../plink --bfile $data_dir/step1_update_ids \
+  --update-sex $release_notes/update_sex.txt \
+  --make-bed \
+  --out $data_dir/step1_update_sex
+
+../plink --bfile $data_dir/step1_update_ids \
+  --update-parents $release_notes/update_parent.txt \
+  --update-sex $release_notes/update_sex.txt \
+  --pheno $release_notes/update_pheno.txt \
+  --make-bed \
+  --out $data_dir/step1_update_pheno
+
+../plink --bfile $data_dir/step1_update_pheno --missing --out $data_dir/step2_overall_missing
+
+../plink --bfile $data_dir/step1_update_pheno --mind 0.1 --geno 0.1 --make-bed --out $data_dir/step3_filtered # 18721
+
+tar -czvf $dir/step2_missingness.tar.gz step2_overall_missing.imiss  step2_overall_missing.lmiss
+
+
+
+../plink --bfile $data_dir/step3_filtered --check-sex --out $data_dir/step4_sexcheck 
+grep 'PROBLEM' $data_dir/step4_sexcheck.sexcheck > $data_dir/step4_sex_discrepancy.txt 
+wc -l $data_dir/step4_sex_discrepancy.txt  # count the problematic sample based on threshold 0.2 and 0.8, 209
+
+ROOT="/project2/cshu0237_1689/SPARK/iWES_v2/genotypes/genotyping_array/idat"
+find "$ROOT" -type f > $dir/all_idat_files.txt
+
+
+# 1) path to your list of all idat files
+ALL_IDATS=$dir/all_idat_files.txt
+ 
+# 2) path to your sex‐discrepancy file
+DISCREP=$data_dir/step4_sex_discrepancy.txt
+
+# 3) extract only the 2nd column (the IID) and filter
+grep -Ff <(
+  # grab col 2 (skip header if any—you can add `NR>1 &&` inside the awk if you have one)
+  awk '{print $2}' "$DISCREP"
+) "$ALL_IDATS" > $dir/idats_with_sex_discrepancy.txt
+
+tar -czvf $dir/idats_sex_discrepancy.tar.gz \
+    --files-from=$dir/idats_with_sex_discrepancy.txt 
+
+
+ALL_IDATS="all_idat_files.txt"
+BAD_IDATS="idats_with_sex_discrepancy.txt"
+N=200
+# output files
+ALL_SAMPLES="all_samples.txt"
+BAD_SAMPLES="bad_samples.txt"
+GOOD_SAMPLES="good_samples.txt"
+SELECTED="selected_samples.txt"
+OUT_PATHS="selected_idat_paths.txt"
+# ——————————
+
+# 1) Extract unique sample IDs from the full idat list
+#    e.g. /.../SP012345_Grn.idat  →  SP012345
+awk -F/ '{print $NF}' "$ALL_IDATS" \
+  | sed -E 's/_(Grn|Red)\.idat$//' \
+  | sort -u > "$ALL_SAMPLES"
+
+# 2) Extract unique sample IDs from the bad (sex‐discrepancy) list
+awk -F/ '{print $NF}' "$BAD_IDATS" \
+  | sed -E 's/_(Grn|Red)\.idat$//' \
+  | sort -u > "$BAD_SAMPLES"
+
+# 3) Subtract bad from all → good samples
+grep -Fvx -f "$BAD_SAMPLES" "$ALL_SAMPLES" > "$GOOD_SAMPLES"
+
+# 4) Randomly pick N samples
+shuf -n "$N" "$GOOD_SAMPLES" > "$SELECTED"
+
+# 5) Pull out the full paths for those samples (both Grn and Red)
+grep -Ff "$SELECTED" "$ALL_IDATS" > "$OUT_PATHS"
+
+tar -czvf $dir/idats_sex_normal.tar.gz \
+    --files-from=$dir/selected_idat_paths.txt
+
+
+awk '{print $1, $2}' $data_dir/step4_sex_discrepancy.txt > $data_dir/step4_problematic_swap_list.txt
+
+../plink --bfile $data_dir/step3_filtered \
+      --remove $data_dir/step4_problematic_swap_list.txt \
+      --make-bed \
+      --out $data_dir/step4_mismatch_filtered
+
+wget https://www.kingrelatedness.com/Linux-king.tar.gz
+tar -xzvf Linux-king.tar.gz
+
+king -b $data_dir/step4_mismatch_filtered.bed --fam $data_dir/step4_mismatch_filtered.fam --bim $data_dir/step4_mismatch_filtered.bim --related --degree 2 --prefix kinship2
+
+tar -czvf $dir/king2.tar.gz kinship2.kin kinship2.kin0 kinship2X.kin kinship2X.kin0 kinship2allsegs.txt
+
+
